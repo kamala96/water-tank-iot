@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+
+{% block title %}SMART WATER TANK - HOME {% endblock %}
+
+{% block content %}
+
+<section class="hero-section d-flex justify-content-center align-items-center" id="section_1">
+     <div class="container">
+        <div class="row">
+
+            <div class="col-lg-8 col-12 mx-auto">
+                <h1 class="text-white text-center">Real-Time Monitor</h1>
+                <!-- <h6 class="text-center">Please enter your username and password</h6>                 -->
+
+                 <!-- TEST WEBSOCKET MESSAGES:
+                <textarea id="account-log" cols="100" rows="10"></textarea>
+                <input id="account-message-input" type="text" size="100"><br>
+                <input id="account-message-submit" type="button" value="Send"> -->
+
+            </div>
+        </div>
+    </div>   
+</section>
+
+<section class="explore-section section-padding" id="section_2">
+    <div class="container-fluid">
+        <div class="row">
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="design-tab" data-bs-toggle="tab" data-bs-target="#design-tab-pane" type="button" role="tab" aria-controls="design-tab-pane" aria-selected="true">Tanks</button>
+                </li>
+
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="marketing-tab" data-bs-toggle="tab" data-bs-target="#marketing-tab-pane" type="button" role="tab" aria-controls="marketing-tab-pane" aria-selected="false">My Statistics</button>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <div class="tab-content" id="myTabContent">
+                    
+                    <div class="tab-pane fade show active" id="design-tab-pane" role="tabpanel" aria-labelledby="design-tab" tabindex="0">
+                        <div class="row">
+
+                            {% for tank in water_tanks %}                            
+                                <div class="col-lg-6 col-md-6 col-12 mb-4 mb-lg-3 tank-chart">
+                                    <div class="custom-block bg-white shadow-lg">
+                                        <a href="javascript:void(0);">
+                                            <div class="d-flex">
+                                                <div>
+                                                    <h5 class="mb-2">{{ tank.name }}</h5>
+                                                    <!-- {j{ tank.topic.water_level }} -->
+                                                </div>
+
+                                                <span class="badge bg-design rounded-pill ms-auto">{{ owner_topic }}</span>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-md-8">
+                                                    <canvas id="tankChart{{ forloop.counter }}"></canvas>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="row">
+                                                        <div class="col-md-12">
+                                                            <h6>Mode</h6>
+                                                            <p>Status: <span id="modeStatus">{{tank.pump_mode }}</span></p>
+                                                            <button id="togglePump" class="btn" style="background-color: var(--primary-color); color: var(--white-color);">Toogle Mode</button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row mt-5">
+                                                        <div class="col-md-12">
+                                                            <h6>Pump</h6>
+                                                            <p>Status: <span id="pumpStatus{{ forloop.counter }}">{{ tank.pump_status }}</span></p>
+                                                            <button id="togglePump{{ forloop.counter }}" class="btn btn-{% if tank.pump_status == 'On' %}success{% else %}danger{% endif %}">Toogle Pump</button>
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="marketing-tab-pane" role="tabpanel" aria-labelledby="marketing-tab" tabindex="0">
+                        <div class="row">
+                            <div class="col-lg-4 col-md-6 col-12 mb-4 mb-lg-3">
+                                <div class="custom-block bg-white shadow-lg">
+                                    <a href="topics-detail.html">
+                                        <div class="d-flex">
+                                            <div>
+                                                <h5 class="mb-2">Advertising</h5>
+                                                <p class="mb-0">Lorem Ipsum dolor sit amet consectetur</p>
+                                            </div>
+                                            <span class="badge bg-advertising rounded-pill ms-auto">30</span>
+                                        </div>
+                                        
+                                        <!-- <img src="images/topics/undraw_online_ad_re_ol62.png" class="custom-block-image img-fluid" alt=""> -->
+                                    </a>
+                                </div>
+                            </div>                         
+                            
+                            
+                            
+                        </div>
+                    </div>
+                
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+
+{{ owner_topic|json_script:"owner-topic" }}
+<script type="text/javascript">
+    
+    const ownerTopic = JSON.parse(document.getElementById('owner-topic').textContent);
+
+    let socket; // Declare a global variable for the WebSocket connection
+    let reconnectTimeout = null;
+
+    function connectWebSocket() {
+        return new Promise((resolve, reject) => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                socket = new WebSocket(
+                    'ws://'
+                    + window.location.host
+                    + '/ws/account/'
+                    + ownerTopic
+                    + '/'
+                );
+
+                socket.onopen = function () {
+                    console.log("WebSocket connection established.");
+                    clearTimeout(reconnectTimeout); // Clear any previous reconnect attempts
+                    resolve(socket); // Resolve the promise with the WebSocket instanc
+                };
+
+                socket.onmessage = function (event) {
+                    const { message } = JSON.parse(event.data);
+                    console.log(message);
+                    document.querySelector('#account-log').value += (message.payload + '\n');
+                };
+
+                socket.onclose = function (event) {
+                    if (event.wasClean) {
+                        console.log("WebSocket connection closed cleanly, code=" + event.code + ", reason=" + event.reason);
+                    } else {
+                        console.error("WebSocket connection died");
+                    }
+
+                    // Reconnect with exponential backoff
+                    const delay = calculateExponentialBackoffDelay();
+                    console.log(`Reconnecting in ${delay} milliseconds...`);
+                    reconnectTimeout = setTimeout(connectWebSocket, delay);
+                };
+            } else {
+                resolve(socket); // Resolve the promise with the existing WebSocket instance
+            }
+        });
+    }
+
+    function sendMessage(message) {
+        connectWebSocket()
+            .then((socket) => {
+                socket.send(JSON.stringify({
+                    'message': message
+                }));
+            })
+            .catch((error) => {
+                console.error("Error sending message:", error);
+            });
+    }
+
+    function calculateExponentialBackoffDelay() {
+        // Define your exponential backoff strategy here.
+        // For example, you can double the delay each time.
+        // Start with a minimum delay and set a maximum delay.
+        const minDelay = 1000; // 1 second
+        const maxDelay = 60000; // 60 seconds
+
+        if (!this.backoffDelay || this.backoffDelay < minDelay) {
+            this.backoffDelay = minDelay;
+        } else {
+            this.backoffDelay *= 2;
+            if (this.backoffDelay > maxDelay) {
+                this.backoffDelay = maxDelay;
+            }
+        }
+
+        return this.backoffDelay;
+    }
+
+    // Start the initial WebSocket connection
+    connectWebSocket();
+
+
+    // Get the current percentage data from Django context
+    var waterTanks = {{ water_tanks|safe}};
+
+    // Define custom colors using CSS variables
+    var primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color');
+    var secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--secondary-color');
+
+
+    // Create a Chart.js chart for each tank
+    for (var i = 0; i < waterTanks.length; i++) {
+        var ctx = document.getElementById('tankChart' + (i + 1)).getContext('2d');
+        // console.log(waterTanks[i]);
+        // console.log(ctx);
+        var chart = new Chart(ctx, {
+            type: 'doughnut', // Use a doughnut chart to represent tank filling
+            data: {
+                labels: ['Filled', 'Empty'],
+                datasets: [{
+                    data: [waterTanks[i].percentage, 100 - waterTanks[i].percentage],
+                    backgroundColor: [secondaryColor, 'lightgray'],
+                }]
+            },
+            options: {
+                title: {
+                    display: true,
+                    text: waterTanks[i].name,
+                },
+                legend: {
+                    display: true,
+                },
+                plugins: {
+                    datalabels: {
+                        display: true,
+                        formatter: function(value, context) {
+                            return context.chart.data.labels[context.dataIndex] + ': ' + value + '%';
+                        },
+                        color: 'white',
+                    }
+                },
+                tooltips: {
+                    enabled: false, // Disable tooltips on hover
+                }
+            }
+        });
+        
+    }
+
+
+
+
+
+
+
+
+    document.querySelector('#account-message-input').focus();
+    document.querySelector('#account-message-input').onkeyup = function(e) {
+        if (e.key === 'Enter') {  // enter, return
+            document.querySelector('#account-message-submit').click();
+        }
+    };
+
+    document.querySelector('#account-message-submit').onclick = function(e) {
+        const messageInputDom = document.querySelector('#account-message-input');
+        const message = messageInputDom.value;
+        sendMessage(message);
+        messageInputDom.value = '';
+    };
+
+</script>
+{% endblock %}
+

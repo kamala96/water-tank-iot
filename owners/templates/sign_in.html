@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}SMART WATER TANK - SIGN IN {% endblock %}
+
+{% block content %}
+<section class="hero-section d-flex justify-content-center align-items-center" id="section_1">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-12 mx-auto">
+                <h1 class="text-white text-center">Get into your account</h1>
+                <h6 class="text-center">Please enter your username and password</h6>
+
+                <form method="post" class="custom-form mt-4 pt-2 mb-lg-0 mb-5">
+                    {% csrf_token %}
+                    <div class="input-group input-group-lg mb-3">
+                        <span class="input-group-text bi-person" id="basic-addon1"></span>
+                        {{ form.username }}
+                    </div>
+                    <div class="input-group input-group-lg mb-3">
+                        <span class="input-group-text bi-key" id="basic-addon2"></span>
+                        {{ form.password }}
+                    </div>
+                    {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> Invalid login credentials.
+                    </div>
+                    {% endif %}
+                    <button type="submit" class="form-control">Sign In</button>
+                </form>
+
+            </div>
+        </div>
+    </div>    
+</section>
+
+{% endblock %}
