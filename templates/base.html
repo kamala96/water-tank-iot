@@ -16,6 +16,17 @@
 
     <link rel="stylesheet" type="text/css" href="{% static 'css/templatemo-topic-listing.css' %}">
 
+    <style>
+        .spinning-icon {
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+        }
+    </style>
+
 </head>
 
 <body id="top">
@@ -76,20 +87,20 @@
         <div class="container">
             <div class="row">
 
-                <div class="col-lg-4 col-md-4 col-12">
+                <div class="col-lg-4 col-md-4 col-sm-12">
                     <a class="navbar-brand mb-2 text-dark" href="{% if user.is_authenticated %}{% url 'account-home' %}{% else %}{% url 'index' %}{% endif %}">
                         <i class="bi-back"></i>
                         <span>Smart Water Tank</span>
                     </a>
                 </div>
 
-                <div class="col-lg-4 col-md-4 col-12 mt-lg-2">
+                <div class="col-lg-4 col-md-4 col-sm-12 mt-lg-2">
                     <p class="copyright-text">
                         Copyright &copy; 2023 Smart Water Tank. All rights reserved.
                     </p>
                 </div>
 
-                <div class="col-lg-4 col-md-4 col-12 mt-lg-0 ms-auto">
+                <div class="col-lg-4 col-md-4 col-sm-12 mt-lg-0 ms-auto">
                     <div class="d-lg-none ms-auto me-4">
                         <a href="#top" class="navbar-icon bi-chevron-double-up smoothscroll"></a>
                     </div>
@@ -112,6 +123,7 @@
     <script src="{% static 'js/jquery.sticky.js' %}"></script>
     <script src="{% static 'js/click-scroll.js' %}"></script>
     <script src="{% static 'js/custom.js' %}"></script>
+    <script src="{% static 'js/bootbox.all.min.js' %}"></script>
     
     {% block scripts %}
     {% endblock %}

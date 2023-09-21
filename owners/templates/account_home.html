@@ -47,37 +47,27 @@
                         <div class="row">
 
                             {% for tank in water_tanks %}                            
-                                <div class="col-lg-6 col-md-6 col-12 mb-4 mb-lg-3 tank-chart">
+                                <div class="col-lg-6 col-md-6 col-sm-12 mb-4 mb-lg-3 tank-chart">
                                     <div class="custom-block bg-white shadow-lg">
                                         <a href="javascript:void(0);">
                                             <div class="d-flex">
                                                 <div>
                                                     <h5 class="mb-2">{{ tank.name }}</h5>
-                                                    <!-- {j{ tank.topic.water_level }} -->
                                                 </div>
 
                                                 <span class="badge bg-design rounded-pill ms-auto">{{ owner_topic }}</span>
                                             </div>
                                             <div class="row mt-2">
-                                                <div class="col-md-8">
-                                                    <canvas id="tankChart{{ forloop.counter }}"></canvas>
+                                                <div class="col-md-8 col-sm-12">
+                                                    <canvas id="tankChart_{{ tank.id }}"></canvas>
                                                 </div>
-                                                <div class="col-md-4">
-                                                    <div class="row">
-                                                        <div class="col-md-12">
-                                                            <h6>Mode</h6>
-                                                            <p>Status: <span id="modeStatus">{{tank.pump_mode }}</span></p>
-                                                            <button id="togglePump" class="btn" style="background-color: var(--primary-color); color: var(--white-color);">Toogle Mode</button>
-                                                        </div>
-                                                    </div>
-                                                    <div class="row mt-5">
-                                                        <div class="col-md-12">
-                                                            <h6>Pump</h6>
-                                                            <p>Status: <span id="pumpStatus{{ forloop.counter }}">{{ tank.pump_status }}</span></p>
-                                                            <button id="togglePump{{ forloop.counter }}" class="btn btn-{% if tank.pump_status == 'On' %}success{% else %}danger{% endif %}">Toogle Pump</button>
-                                                        </div>
-                                                    </div>
+                                                <div class="col-md-4 col-sm-12 d-flex align-items-center">
+                                                    <div>
+                                                        <h6>Pump</h6>
+                                                        <p>Status: <span data-pump-topic="{{ tank.topic.pump_status }}" id="pumpStatus{{ forloop.counter }}">{{ tank.pump_status }}</span></p>
 
+                                                        <button data-pump-topic="{{ tank.topic.pump_status }}" id="togglePump{{ forloop.counter }}" class="btn btn-{% if tank.pump_status == 'On' %}success{% else %}danger{% endif %}">Toogle Pump</button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </a>
@@ -123,8 +113,16 @@
 
 {{ owner_topic|json_script:"owner-topic" }}
 <script type="text/javascript">
+
+    // Define custom colors using CSS variables
+    var primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color');
+    var secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--secondary-color');
+
+    // chart canvas instances
+    var chartInstances = {};
     
-    const ownerTopic = JSON.parse(document.getElementById('owner-topic').textContent);
+    // Logged in user institution uniques MQTT
+    ownerTopic = JSON.parse(document.getElementById('owner-topic').textContent);
 
     let socket; // Declare a global variable for the WebSocket connection
     let reconnectTimeout = null;
@@ -149,7 +147,22 @@
                 socket.onmessage = function (event) {
                     const { message } = JSON.parse(event.data);
                     console.log(message);
-                    document.querySelector('#account-log').value += (message.payload + '\n');
+
+                    let topicParts = message?.topic?.split("/");
+                    if (topicParts?.length > 0){
+                        let messageAction = topicParts[topicParts.length - 1];
+
+                        if(messageAction == 'CurrentLevel'){
+
+                            // Update chart water level
+                            updateSpecificTankChart(message?.data);
+                        } else if(messageAction == 'PumpStatus'){
+
+                            // UPDATE PUMP STATUS
+                            updatePumpStatus(message);
+                        } else {}
+                    }
+                    // document.querySelector('#account-log').value += (message.payload + '\n');
                 };
 
                 socket.onclose = function (event) {
@@ -171,7 +184,12 @@
     }
 
     function sendMessage(message) {
-        connectWebSocket()
+        let dialog = bootbox.dialog({
+            message: '<p class="text-center mb-0"><i class="bi bi-gear spinning-icon"></i> Please wait while we do something...</p>',
+            closeButton: false
+        }).on("shown.bs.modal", function () {
+            
+            connectWebSocket()
             .then((socket) => {
                 socket.send(JSON.stringify({
                     'message': message
@@ -179,7 +197,11 @@
             })
             .catch((error) => {
                 console.error("Error sending message:", error);
+            }).finally(() => {
+                dialog.modal('hide');
             });
+
+        });
     }
 
     function calculateExponentialBackoffDelay() {
@@ -201,36 +223,77 @@
         return this.backoffDelay;
     }
 
-    // Start the initial WebSocket connection
-    connectWebSocket();
+    function setTanksData(){
 
+        // Get the current percentage data from Django context
+        var waterTanks = {{ water_tanks|safe}};
 
-    // Get the current percentage data from Django context
-    var waterTanks = {{ water_tanks|safe}};
+        // Create a Chart.js chart for each tank
+        $.each(waterTanks, function(key, tank){
+            // var ctx = document.getElementById(`tankChart_${tank.id}`).getContext('2d');
+            var ctx = $(`#tankChart_${tank.id}`)[0].getContext('2d');
+            var chart = new Chart(ctx, {
+                type: 'doughnut', // Use a doughnut chart to represent tank filling
+                data: {
+                    labels: ['Filled', 'Empty'],
+                    datasets: [{
+                        data: [tank.percentage, 100 - tank.percentage],
+                        backgroundColor: [secondaryColor, 'lightgray'],
+                    }]
+                },
+                options: {
+                    title: {
+                        display: true,
+                        text: tank.name,
+                    },
+                    legend: {
+                        display: true,
+                    },
+                    plugins: {
+                        datalabels: {
+                            display: true,
+                            formatter: function(value, context) {
+                                return context.chart.data.labels[context.dataIndex] + ': ' + value + '%';
+                            },
+                            color: 'white',
+                        }
+                    },
+                    tooltips: {
+                        enabled: false, // Disable tooltips on hover
+                    }
+                }
+            });
 
-    // Define custom colors using CSS variables
-    var primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color');
-    var secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--secondary-color');
+            chartInstances['tankChart_' + tank.id] = chart;
+            
+        });
+    }
+    
+    function updateSpecificTankChart(newTankData) {
+        var chartElement = $(`#tankChart_${newTankData.id}`);
+        if (!chartElement) {
+            console.error('Chart element not found for ID ' + chartId);
+            return;
+        }
 
+        // Destroy the existing chart if it exists
+        if (chartInstances[`tankChart_${newTankData.id}`]) {
+            chartInstances[`tankChart_${newTankData.id}`].destroy();
+        }
 
-    // Create a Chart.js chart for each tank
-    for (var i = 0; i < waterTanks.length; i++) {
-        var ctx = document.getElementById('tankChart' + (i + 1)).getContext('2d');
-        // console.log(waterTanks[i]);
-        // console.log(ctx);
-        var chart = new Chart(ctx, {
-            type: 'doughnut', // Use a doughnut chart to represent tank filling
+        var chart = new Chart(chartElement, {
+            type: 'doughnut',
             data: {
                 labels: ['Filled', 'Empty'],
                 datasets: [{
-                    data: [waterTanks[i].percentage, 100 - waterTanks[i].percentage],
+                    data: [newTankData.percentage, 100 - newTankData.percentage],
                     backgroundColor: [secondaryColor, 'lightgray'],
                 }]
             },
             options: {
                 title: {
                     display: true,
-                    text: waterTanks[i].name,
+                    text: newTankData.name,
                 },
                 legend: {
                     display: true,
@@ -250,7 +313,63 @@
             }
         });
         
+        chartInstances['tankChart_' + newTankData.id] = chart;
     }
+
+    function updatePumpStatus(message){
+
+        // Specify the target topic
+        var targetTopic = message?.topic;
+
+        // Select all spans with the specified data-pump-topic attribute
+        var $spans = $('span[data-pump-topic="' + targetTopic + '"]');
+
+        // Update the content of the selected spans
+        $spans.text(message?.data);  
+        
+        
+        // Find the corresponding button element(s) by the data-pump-topic attribute
+        var $buttons = $('button[data-pump-topic="' + targetTopic + '"]');
+
+        // Check the content of the <span> element and update the button(s) class
+        if (message?.data === 'On') {
+            $buttons.removeClass('btn-danger').addClass('btn-success');
+        } else {
+            $buttons.removeClass('btn-success').addClass('btn-danger');
+        }
+    }
+
+    // Start the initial WebSocket connection
+    connectWebSocket();
+
+    // Start initial WaterTanks Data
+    setTanksData();
+
+
+    // Toogle Pump
+    $('.tank-chart button').on('click', function () {
+        var $button = $(this);
+        var topic = $button.data('pump-topic');
+
+        var $spans = $('span[data-pump-topic="' + topic + '"]');
+        var firstSpanId = $spans[0].id;
+        var currentStatus = $(`#${firstSpanId}`).text();
+
+        if (topic.endsWith('PumpStatus')) {
+            let topicParts = topic.split("/");
+
+            if (topicParts.length > 0){
+                // let pumpTopic = topicParts[topicParts.length - 2];
+                let message = {
+                    'action' : 'TooglePump',
+                    'pumpTopic' : topic,
+                    'currentStatus': currentStatus,
+                };
+                sendMessage(message);
+            }
+        }
+
+    });
 
 
 

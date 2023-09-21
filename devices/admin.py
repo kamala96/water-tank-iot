@@ -32,8 +32,8 @@ class ProcessorSwitchesInline(admin.TabularInline):
 
 @admin.register(Processor)
 class ProcessorAdmin(admin.ModelAdmin):
-    list_display = ['device_id', 'owner', 'mqtt_topic', 'switch_count',
-                    'pump_count', 'tank_sensor_count', 'valve_count',]
+    list_display = ['device_id', 'owner', 'name', 'mqtt_topic',
+                    'switch_count', 'pump_count', 'tank_sensor_count', 'valve_count',]
     list_filter = ("owner__name",)
     list_per_page = 10
 
@@ -66,7 +66,7 @@ class SwitchWaterPumpInline(admin.TabularInline):
 
 @admin.register(Switch)
 class SwitchAdmin(admin.ModelAdmin):
-    list_display = ['name', 'total_phases', 'processor']
+    list_display = ['name', 'mqtt_topic', 'total_phases', 'processor']
     list_filter = ("processor__owner__name",)
     list_per_page = 10
 
@@ -83,8 +83,7 @@ class PumpWaterTankSensorInline(admin.TabularInline):
 
 @admin.register(WaterPump)
 class WaterPumpAdmin(admin.ModelAdmin):
-    list_display = ['name', 'pin_number',
-                    'auto_mode', 'mqtt_topic', 'status', 'switch']
+    list_display = ['name', 'pin_number', 'mqtt_topic', 'status', 'switch']
     list_filter = ("switch__processor__owner__name",)
     list_per_page = 10
 

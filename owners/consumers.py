@@ -2,8 +2,12 @@ import json
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import AsyncWebsocketConsumer, WebsocketConsumer
+from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+
+from devices.models import WaterPump
+from .mqtt_handler import mqtt_handler
 
 User = get_user_model()
 
@@ -91,11 +95,23 @@ class TankOwnerConsumer(AsyncWebsocketConsumer):
         text_data_json = json.loads(text_data)
         message = text_data_json["message"]
 
-        # Send message to account group
-        await self.channel_layer.group_send(
-            self.owner_topic_group_name, {
-                "type": "account.message", "message": message}
-        )
+        # Do internal some processes, do not send to channel group
+        if message.get('action') == 'TooglePump':
+            pump_topic = message.get('pumpTopic')
+            topic_parts = pump_topic.split('/')
+            pump_obj = await self.pump_by_topic(topic_parts[-2])
+            if pump_obj is not None:
+                current_status = message.get('currentStatus')
+                new_status = 'On' if current_status == 'Off' else 'Off'
+                new_topic = f'{pump_topic}Manual'
+                mqtt_handler.publish_to_mqtt_topic(new_topic, new_status)
+
+        else:
+            # Send message to account group
+            await self.channel_layer.group_send(
+                self.owner_topic_group_name, {
+                    "type": "account.message", "message": message}
+            )
 
     # Receive message from account group
     async def account_message(self, event):
@@ -103,3 +119,8 @@ class TankOwnerConsumer(AsyncWebsocketConsumer):
 
         # Send message to WebSocket
         await self.send(text_data=json.dumps({"message": message}))
+
+    # Custom methods to deal with some updates
+    @database_sync_to_async
+    def pump_by_topic(self, pump_topic):
+        return WaterPump.objects.filter(mqtt_topic=pump_topic).first()

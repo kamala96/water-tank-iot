@@ -7,7 +7,7 @@ from .models import TankOwner
 
 @receiver(pre_save, sender=TankOwner)
 def tank_owner_pre_save(sender, instance, **kwargs):
-    instance.mqtt_topic = instance.mqtt_topic.upper()
+    instance.mqtt_topic = instance.mqtt_topic.replace(" ", "").upper()
 
 
 # @receiver(post_save, sender=NewsArticle)

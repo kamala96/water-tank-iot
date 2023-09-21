@@ -53,14 +53,15 @@ def account_home(request):
         water_tanks = []
 
         for tank in water_tanks_obj:
+            pump_status = tank.get_full_topic()
+
             tank_dict = {
+                'id': tank.mqtt_topic,
                 'name': tank.name,
                 'percentage': tank.calculate_percentage(),
                 'pump_status': tank.get_pump_status(),
-                'pump_mode': tank.get_pump_mode(),
                 'topic': {
-                    'water_level': 'NIT/LEVEL/kk/kk',
-                    'pump_status': 'NIT/HUU/JJI',
+                    'pump_status': tank.get_full_topic(),
                     'pump_mode': 'NIT/JIU/LOJJ',
                 }
             }
@@ -85,8 +86,8 @@ def account_home(request):
 
         # print(mqtt_data)
 
-        data = mqtt_handler.get_data_from_topic("NIT/home/channel/45")
-        print(data)
+        # data = mqtt_handler.get_data_from_topic("NIT/home/channel/45")
+        # print(data)
 
         # If wanting to publish
         # request_data = json.loads(request.body)

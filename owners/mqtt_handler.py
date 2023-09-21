@@ -5,7 +5,7 @@ import time
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
-from devices.models import MQTTStatus
+from devices.models import MQTTStatus, Processor, WaterPump, WaterTankSensor
 
 # from .consumers import WebSocketConsumer
 
@@ -68,21 +68,74 @@ class MQTTHandler:
 
         # Extract the Institution/Owner/User part from the MQTT topic
         global institution  # Declare institution as a global variable
-        topic_parts = msg.topic.split('/')
+        message_topic = msg.topic
+        topic_parts = message_topic.split('/')
 
         if len(topic_parts) >= 1:
             institution = topic_parts[0]
 
         if institution is not None:
-            # Create a dictionary containing both topic and message
-            mqtt_data = {
-                "topic": msg.topic,
-                "payload": msg.payload.decode('utf-8')
-            }
+            try:
+                mqtt_action = topic_parts[-1]
+                processor_mqtt_topic = topic_parts[1]
 
-            # Trigger a websocket consumer method on channel when a new MQTT message is received
-            async_to_sync(self.channel_layer.group_send)(
-                f'account_{str(institution)}', {"type": "account.message", "message": mqtt_data})
+                # Get Micro-processor object
+                processor_obj = Processor.objects.filter(
+                    owner__mqtt_topic=institution, mqtt_topic=processor_mqtt_topic).first()
+
+                mqtt_data = None
+                if mqtt_action == 'CurrentLevel':
+                    tank_mqtt_topic = topic_parts[-2]
+                    # Get tank object
+                    tank_obj = WaterTankSensor.objects.filter(
+                        mqtt_topic=tank_mqtt_topic, processor=processor_obj).first()
+                    if tank_obj is not None:
+                        # Update water level
+                        sent_water_level = float(msg.payload.decode('utf-8'))
+                        tank_obj.set_current_level(new_level=sent_water_level)
+                        updatedTankData = {
+                            'id': tank_obj.mqtt_topic,
+                            'name': tank_obj.name,
+                            'percentage': tank_obj.calculate_percentage(),
+                        }
+
+                        # Create a dictionary containing both topic and message update
+                        mqtt_data = {
+                            "topic": message_topic,
+                            "data": updatedTankData
+                        }
+
+                elif mqtt_action in ['PumpStatus', 'PumpStatusManual']:
+                    pump_mqtt_topic = topic_parts[-2]
+
+                    # Get pump object
+                    pump_obj = WaterPump.objects.filter(
+                        mqtt_topic=pump_mqtt_topic, switch__processor=processor_obj).first()
+                    if pump_obj is not None:
+                        # Update pump status
+                        _message = str(msg.payload.decode('utf-8'))
+                        if _message in ['On', 'Off']:
+                            status = True if _message == 'On' else False
+                            pump_obj.set_status(new_status=status)
+
+                            if mqtt_action == 'PumpStatusManual':
+                                topic_parts[-1] = 'PumpStatus'
+                                message_topic = "/".join(topic_parts)
+                            mqtt_data = {
+                                "topic": message_topic,
+                                "data": _message
+                            }
+
+                else:
+                    pass
+
+                if mqtt_data is not None:
+                    # Trigger a websocket consumer method on channel when a new MQTT message is received
+                    async_to_sync(self.channel_layer.group_send)(
+                        f'account_{str(institution)}', {"type": "account.message", "message": mqtt_data})
+            except Exception as e:
+                # Handle any other exceptions that may occur
+                print("An error occurred:", str(e))
 
     def start_mqtt_client(self):
         while True:
@@ -109,6 +162,11 @@ class MQTTHandler:
             # If not connected, store the topic for later subscription
             # print(f'MQTT service not ready, topics are in reserve list')
             self.subscribed_topics[topic] = qos
+
+    def publish_to_mqtt_topic(self, topic, message):
+        if self.connected:
+            # Publish a message to a specific MQTT topic
+            self.client.publish(topic, message)
 
     def get_data_from_topic(self, topic):
         # Retrieve and return the data associated with a specific MQTT topic
